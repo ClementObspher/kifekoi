@@ -5,7 +5,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001"
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
 
-export async function fetchData(url: string, method: Method, body: BodyInit | null | undefined, options: RequestInit = {}) {
+export async function fetchData(url: string, method: Method, body?: BodyInit | null, options: RequestInit = {}) {
     const token = await AsyncStorage.getItem("token")
 
     const fullUrl = `${API_URL}${url}`
