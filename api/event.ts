@@ -24,15 +24,14 @@ export interface EventResponse {
     description: string
     startDate: Date
     endDate: Date
-    longitude: number
-    latitude: number
     status: EventStatus
     type: EventType
     isPublic: boolean
     isFeatured: boolean
     coverImage: string
     ownerId: string
-    address: string
+    address: Address
+    participants: { id: string; firstname: string; lastname: string; avatar: string }[]
 }
 
 export interface EventRequest {
@@ -44,17 +43,18 @@ export interface EventRequest {
     status: EventStatus
     type: EventType
     ownerId: string
-    longitude: number
-    latitude: number
     coverImage: string
-    address: string
+    address: Address
 }
 
 export interface EventService {
     getEvents: () => Promise<EventResponse[]>
     getEvent: (id: string) => Promise<EventResponse>
+    getEventsByUserId: () => Promise<EventResponse[]>
     createEvent: (event: EventResponse) => Promise<EventResponse>
     updateEvent: (id: string, event: EventResponse) => Promise<EventResponse>
+    participateToEvent: (id: string) => Promise<void>
+    cancelParticipationToEvent: (id: string) => Promise<void>
     deleteEvent: (id: string) => Promise<void>
 }
 
@@ -68,12 +68,17 @@ export async function getEvent(id: string): Promise<EventResponse> {
     return response.json()
 }
 
+export async function getEventsByUserId(): Promise<EventResponse[]> {
+    const response = await fetchData(`/events/user`, "GET")
+    return response.json()
+}
+
 export async function createEvent(event: EventRequest): Promise<EventResponse> {
     const response = await fetchData("/events", "POST", JSON.stringify(event))
     return response.json()
 }
 
-export async function updateEvent(id: string, event: EventResponse): Promise<EventResponse> {
+export async function updateEvent(id: string, event: EventRequest): Promise<EventResponse> {
     const response = await fetchData(`/events/${id}`, "PUT", JSON.stringify(event))
     return response.json()
 }
@@ -88,7 +93,17 @@ export async function getEventById(id: string): Promise<EventResponse> {
     return response.json()
 }
 
-export async function participateToEvent(id: string, userId: string): Promise<void> {
-    const response = await fetchData(`/events/${userId}/participate/${id}`, "POST")
+export async function getByTypes(types: EventType[]): Promise<EventResponse[]> {
+    const response = await fetchData(`/events/types?types=${types.join(",")}`, "GET")
+    return response.json()
+}
+
+export async function participateToEvent(id: string): Promise<void> {
+    const response = await fetchData(`/events/participate/${id}`, "POST")
+    return response.json()
+}
+
+export async function cancelParticipationToEvent(id: string): Promise<void> {
+    const response = await fetchData(`/events/unparticipate/${id}`, "POST")
     return response.json()
 }

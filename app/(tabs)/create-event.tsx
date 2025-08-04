@@ -1,15 +1,17 @@
-import { EventRequest, EventStatus, EventType, createEvent } from "@/api/event"
+import { EventRequest, EventStatus, EventType, createEvent, getEvent, updateEvent } from "@/api/event"
 import { getProfile } from "@/api/user"
 import { useActionSheet } from "@expo/react-native-action-sheet"
 import { yupResolver } from "@hookform/resolvers/yup"
 import DateTimePicker from "@react-native-community/datetimepicker"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as ImagePicker from "expo-image-picker"
 import * as Location from "expo-location"
+import { router, useLocalSearchParams } from "expo-router"
 import React, { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { Toast } from "toastify-react-native"
 import * as yup from "yup"
 
 interface FormData {
@@ -18,7 +20,7 @@ interface FormData {
     type: EventType
     startDate: Date
     endDate: Date
-    address: string
+    address: Address
     coverImage: string
 }
 
@@ -28,13 +30,23 @@ const schema = yup.object().shape({
     type: yup.mixed<EventType>().oneOf(Object.values(EventType)).required("Le type est requis"),
     startDate: yup.date().required("La date de début est requise"),
     endDate: yup.date().required("La date de fin est requise").min(yup.ref("startDate"), "La date de fin doit être après la date de début"),
-    address: yup.string().required("L'adresse est requise"),
+    address: yup.object().shape({
+        number: yup.string().required(),
+        street: yup.string().required(),
+        city: yup.string().required(),
+        postal_code: yup.string().required(),
+        country: yup.string().required(),
+        latitude: yup.number().required(),
+        longitude: yup.number().required(),
+    }),
     coverImage: yup.string().required("L'image de couverture est requise"),
 })
 
 export default function CreateEventScreen() {
+    const { type, id } = useLocalSearchParams<{ type: "create" | "update"; id: string }>()
     const { showActionSheetWithOptions } = useActionSheet()
     const queryClient = useQueryClient()
+    const [addressQuery, setAddressQuery] = useState<string>("")
     const [addressSuggestions, setAddressSuggestions] = useState<
         { label: string; street: string; city: string; postalCode: string; country: string; latitude: number; longitude: number }[] | null
     >(null)
@@ -51,30 +63,44 @@ export default function CreateEventScreen() {
     const [showSuggestions, setShowSuggestions] = useState(false)
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
 
+    const { data: event } = useQuery({
+        queryKey: ["event", id],
+        queryFn: () => getEvent(id),
+        enabled: type === "update" && !!id,
+    })
+
     const {
         control,
         handleSubmit,
         formState: { errors },
         setValue,
-        watch,
+        reset,
     } = useForm<FormData>({
         resolver: yupResolver(schema),
         defaultValues: {
-            type: EventType.OTHER,
-            startDate: new Date(),
-            endDate: new Date(),
-            coverImage: "",
-            address: "",
+            title: type === "update" ? event?.title : "",
+            description: type === "update" ? event?.description : "",
+            type: type === "update" ? event?.type : EventType.OTHER,
+            startDate: type === "update" ? new Date(event?.startDate!) : new Date(),
+            endDate: type === "update" ? new Date(event?.endDate!) : new Date(),
+            coverImage: type === "update" ? event?.coverImage : "",
+            address: {
+                number: type === "update" ? event?.address.number : "",
+                street: type === "update" ? event?.address.street : "",
+                city: type === "update" ? event?.address.city : "",
+                postal_code: type === "update" ? event?.address.postal_code : "",
+                country: type === "update" ? event?.address.country : "",
+                latitude: type === "update" ? event?.address.latitude : 0,
+                longitude: type === "update" ? event?.address.longitude : 0,
+            },
         },
     })
-
-    const address = watch("address")
 
     useEffect(() => {
         ;(async () => {
             const { status } = await Location.requestForegroundPermissionsAsync()
             if (status !== "granted") {
-                console.log("Permission de localisation refusée")
+                Toast.error("Permission de localisation refusée")
                 return
             }
 
@@ -84,22 +110,22 @@ export default function CreateEventScreen() {
                     latitude: location.coords.latitude,
                     longitude: location.coords.longitude,
                 })
-            } catch (error) {
-                console.error("Erreur lors de la récupération de la position:", error)
+            } catch {
+                Toast.error("Erreur lors de la récupération de la position")
             }
         })()
     }, [])
 
     useEffect(() => {
         const fetchAddressSuggestions = async () => {
-            if (address.length < 3) {
+            if (addressQuery.length < 3) {
                 setAddressSuggestions(null)
                 return
             }
 
             setIsLoadingSuggestions(true)
             try {
-                fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}&limit=5&lat=${userLocation?.latitude}&lon=${userLocation?.longitude}`)
+                fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(addressQuery)}&limit=5&lat=${userLocation?.latitude}&lon=${userLocation?.longitude}`)
                     .then((res) => res.json())
                     .then(
                         (data: { features: { properties: { label: string; name?: string; city?: string; postcode?: string }; geometry: { coordinates: [number, number] } }[] }) => {
@@ -117,8 +143,8 @@ export default function CreateEventScreen() {
                         }
                     )
                     .catch(() => {})
-            } catch (error) {
-                console.error("Erreur lors de la récupération des suggestions:", error)
+            } catch {
+                Toast.error("Erreur lors de la récupération des suggestions")
             } finally {
                 setIsLoadingSuggestions(false)
             }
@@ -126,7 +152,13 @@ export default function CreateEventScreen() {
 
         const debounceTimer = setTimeout(fetchAddressSuggestions, 300)
         return () => clearTimeout(debounceTimer)
-    }, [address, userLocation])
+    }, [addressQuery, userLocation])
+
+    useEffect(() => {
+        if (event && type === "update") {
+            setAddressQuery(`${event.address.number} ${event.address.street}, ${event.address.postal_code} ${event.address.city}, ${event.address.country}`)
+        }
+    }, [event, type])
 
     // Fonction pour calculer la distance entre deux points (formule de Haversine)
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -144,7 +176,16 @@ export default function CreateEventScreen() {
 
     const handleAddressSelect = (suggestion: { label: string; street: string; city: string; postalCode: string; country: string; latitude: number; longitude: number }) => {
         setAddressSelected(suggestion)
-        setValue("address", suggestion.label)
+        setValue("address", {
+            number: suggestion.street.split(" ")[0],
+            street: suggestion.street.split(" ").slice(1).join(" "),
+            city: suggestion.city,
+            postal_code: suggestion.postalCode,
+            country: suggestion.country,
+            latitude: suggestion.latitude,
+            longitude: suggestion.longitude,
+        })
+        setAddressQuery(suggestion.label)
         setShowSuggestions(false)
     }
 
@@ -152,7 +193,19 @@ export default function CreateEventScreen() {
         mutationFn: (event: EventRequest) => createEvent(event),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["events"] })
-            // router.back()
+            reset()
+            router.back()
+            Toast.success("L'événement a été créé avec succès !")
+        },
+    })
+
+    const { mutate: updateEventMutation, isPending: isUpdating } = useMutation({
+        mutationFn: (event: EventRequest) => updateEvent(id, event),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["events"] })
+            reset()
+            router.back()
+            Toast.success("L'événement a été modifié avec succès !")
         },
     })
 
@@ -166,17 +219,57 @@ export default function CreateEventScreen() {
                 endDate: data.endDate,
                 type: data.type,
                 address: data.address,
-                latitude: addressSelected?.latitude || 0,
-                longitude: addressSelected?.longitude || 0,
                 status: EventStatus.PENDING,
                 slug: data.title.toLowerCase().replace(/\s+/g, "-"),
                 ownerId: user.id,
                 coverImage: data.coverImage,
             }
 
-            createEventMutation(newEvent)
-        } catch (error) {
-            console.error("Erreur lors de la création de l'événement:", error)
+            if (type === "update") {
+                updateEventMutation(newEvent)
+                reset({
+                    title: "",
+                    description: "",
+                    type: EventType.OTHER,
+                    startDate: new Date(),
+                    endDate: new Date(),
+                    coverImage: "",
+                    address: {
+                        number: "",
+                        street: "",
+                        city: "",
+                        postal_code: "",
+                        country: "",
+                        latitude: 0,
+                        longitude: 0,
+                    },
+                })
+                setAddressQuery("")
+                setAddressSelected(null)
+            } else {
+                createEventMutation(newEvent)
+                reset({
+                    title: "",
+                    description: "",
+                    type: EventType.OTHER,
+                    startDate: new Date(),
+                    endDate: new Date(),
+                    coverImage: "",
+                    address: {
+                        number: "",
+                        street: "",
+                        city: "",
+                        postal_code: "",
+                        country: "",
+                        latitude: 0,
+                        longitude: 0,
+                    },
+                })
+                setAddressQuery("")
+                setAddressSelected(null)
+            }
+        } catch {
+            Toast.error("Une erreur est survenue lors de la création de l'événement")
         }
     }
 
@@ -184,7 +277,7 @@ export default function CreateEventScreen() {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
 
         if (status !== "granted") {
-            alert("Désolé, nous avons besoin des permissions pour accéder à vos photos !")
+            Toast.error("Désolé, nous avons besoin des permissions pour accéder à vos photos !")
             return
         }
 
@@ -197,7 +290,6 @@ export default function CreateEventScreen() {
         })
 
         if (!result.canceled) {
-            console.log(result.assets[0].base64?.slice(0, 100))
             setValue("coverImage", `data:${result.assets[0].mimeType};base64,${result.assets[0].base64}`)
         }
     }
@@ -206,7 +298,7 @@ export default function CreateEventScreen() {
         const { status } = await ImagePicker.requestCameraPermissionsAsync()
 
         if (status !== "granted") {
-            alert("Désolé, nous avons besoin des permissions pour accéder à votre caméra !")
+            Toast.error("Désolé, nous avons besoin des permissions pour accéder à votre caméra !")
             return
         }
 
@@ -260,9 +352,8 @@ export default function CreateEventScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+            <Text style={styles.title}>{type === "update" ? "Modifier l'événement" : "Créer un événement"}</Text>
             <ScrollView contentContainerStyle={styles.scrollContainer}>
-                <Text style={styles.title}>Créer un événement</Text>
-
                 <View style={styles.formGroup}>
                     <Text style={styles.label}>Titre</Text>
                     <Controller
@@ -336,7 +427,6 @@ export default function CreateEventScreen() {
                     />
                     {errors.startDate && <Text style={styles.errorText}>{errors.startDate.message}</Text>}
                 </View>
-
                 <View style={styles.formGroup}>
                     <Text style={styles.label}>Date de fin</Text>
                     <Controller
@@ -350,21 +440,34 @@ export default function CreateEventScreen() {
                 <View style={styles.formGroup}>
                     <Text style={styles.label}>Adresse</Text>
                     <View style={styles.addressContainer}>
-                        <Controller
-                            control={control}
-                            name="address"
-                            render={({ field: { onChange, value } }) => (
-                                <TextInput
-                                    style={[styles.input, errors.address && styles.inputError]}
-                                    value={value}
-                                    onChangeText={(text) => {
-                                        onChange(text)
-                                        setShowSuggestions(true)
-                                    }}
-                                    placeholder="Adresse de l'événement"
-                                    onFocus={() => setShowSuggestions(true)}
-                                />
-                            )}
+                        <TextInput
+                            style={[styles.input, errors.address && styles.inputError]}
+                            value={addressQuery}
+                            onChangeText={(text) => {
+                                setAddressQuery(text)
+                                setShowSuggestions(true)
+                            }}
+                            placeholder="Adresse de l'événement"
+                            onFocus={() => setShowSuggestions(true)}
+
+                            // onKeyPress={(e) => {
+                            //     if (e.nativeEvent.key === "Backspace") {
+                            //         e.preventDefault()
+                            //         e.stopPropagation()
+                            //         setShowSuggestions(false)
+                            //         setAddressQuery("")
+                            //         setAddressSelected(null)
+                            //         setValue("address", {
+                            //             number: "",
+                            //             street: "",
+                            //             city: "",
+                            //             postal_code: "",
+                            //             country: "",
+                            //             latitude: 0,
+                            //             longitude: 0,
+                            //         })
+                            //     }
+                            // }}
                         />
                         {isLoadingSuggestions && (
                             <View style={styles.suggestionsLoading}>
@@ -420,7 +523,11 @@ export default function CreateEventScreen() {
                 </View>
 
                 <TouchableOpacity style={[styles.submitButton, isPending && styles.submitButtonDisabled]} onPress={handleSubmit(onSubmit)} disabled={isPending}>
-                    {isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Créer l&apos;événement</Text>}
+                    {isPending || isUpdating ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={styles.submitButtonText}>{type === "update" ? "Modifier l'événement" : "Créer l'événement"}</Text>
+                    )}
                 </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
@@ -437,6 +544,7 @@ const styles = StyleSheet.create({
         paddingBottom: 75,
     },
     title: {
+        textAlign: "center",
         fontSize: 24,
         fontWeight: "bold",
         marginBottom: 24,

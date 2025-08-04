@@ -16,7 +16,13 @@ export interface LoginCredentials {
 }
 
 export interface RegisterCredentials extends LoginCredentials {
-    name: string
+    firstname: string
+    lastname: string
+    bio: string
+    nationality: string
+    birthdate: Date
+    avatar: string
+    confirmPassword: string
 }
 
 export interface AuthService {
@@ -30,12 +36,11 @@ export interface AuthService {
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
         const response = await fetchData("/auth/login", "POST", JSON.stringify(credentials))
-        const data = await response.json()
-        console.log(data)
-        if (data.token) {
-            await AsyncStorage.setItem("token", data.token)
+        const token = await response.json()
+        if (token) {
+            await AsyncStorage.setItem("token", token)
         }
-        return data
+        return token
     } catch (error) {
         console.error("Erreur lors de la connexion:", error)
         throw error

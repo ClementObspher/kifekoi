@@ -1,20 +1,38 @@
 import { Tabs } from "expo-router"
 import React from "react"
-import { Platform } from "react-native"
+import { Platform, Text, View } from "react-native"
 
 import { HapticTab } from "@/components/HapticTab"
 import { IconSymbol } from "@/components/ui/IconSymbol"
 import TabBarBackground from "@/components/ui/TabBarBackground"
-import { Colors } from "@/constants/Colors"
-import { useColorScheme } from "@/hooks/useColorScheme"
+
+const COLORS = ["#fb5d18", "#fba30b", "#4abb45", "#3a35db", "#1487ea"]
+
+// Composant pour colorer chaque lettre individuellement
+const ColoredLabel = ({ text, colors }: { text: string; colors: string[] }) => {
+    return (
+        <View style={{ flexDirection: "row" }}>
+            {text.split("").map((letter, index) => (
+                <Text
+                    key={index}
+                    style={{
+                        color: colors[index % colors.length],
+                        fontSize: 10,
+                        fontWeight: "500",
+                    }}
+                >
+                    {letter}
+                </Text>
+            ))}
+        </View>
+    )
+}
 
 export default function TabLayout() {
-    const colorScheme = useColorScheme()
-
     return (
         <Tabs
             screenOptions={{
-                tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+                tabBarActiveTintColor: "#007AFF",
                 headerShown: false,
                 tabBarButton: HapticTab,
                 tabBarBackground: TabBarBackground,
@@ -32,6 +50,7 @@ export default function TabLayout() {
                 options={{
                     title: "Home",
                     tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+                    tabBarLabel: ({ focused }) => <ColoredLabel text="Home" colors={focused ? ["#007AFF"] : ["#666"]} />,
                 }}
             />
             <Tabs.Screen
@@ -39,6 +58,7 @@ export default function TabLayout() {
                 options={{
                     title: "Événements",
                     tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+                    tabBarLabel: ({ focused }) => <ColoredLabel text="Événements" colors={focused ? ["#007AFF"] : ["#666"]} />,
                 }}
             />
             <Tabs.Screen
@@ -46,6 +66,7 @@ export default function TabLayout() {
                 options={{
                     title: "Créer",
                     tabBarIcon: ({ color }) => <IconSymbol size={28} name="plus.circle.fill" color={color} />,
+                    tabBarLabel: ({ focused }) => <ColoredLabel text="Créer" colors={focused ? ["#007AFF"] : ["#666"]} />,
                 }}
             />
             <Tabs.Screen
@@ -53,6 +74,7 @@ export default function TabLayout() {
                 options={{
                     title: "Profile",
                     tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
+                    tabBarLabel: ({ focused }) => <ColoredLabel text="Profile" colors={focused ? ["#007AFF"] : ["#666"]} />,
                 }}
             />
         </Tabs>

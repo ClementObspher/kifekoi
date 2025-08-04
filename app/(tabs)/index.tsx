@@ -1,32 +1,91 @@
-import { getEvents } from "@/api/event"
+import { EventType, getByTypes } from "@/api/event"
+import { acceptFriendRequest, cancelFriendRequest, getPendingFriendRequests, getSentFriendRequests } from "@/api/user"
 import { ThemedView } from "@/components/ThemedView"
-import { useQuery } from "@tanstack/react-query"
+import { IconSymbol } from "@/components/ui/IconSymbol"
+import { useGetToken } from "@/hooks/useGetToken"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { BlurView } from "expo-blur"
+import { Checkbox } from "expo-checkbox"
 import * as Location from "expo-location"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
-import { ActivityIndicator, Alert, Dimensions, Image, StyleSheet, Text } from "react-native"
+import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import MapView, { Callout, Marker } from "react-native-maps"
+import Modal from "react-native-modal"
+import { Toast } from "toastify-react-native"
 
 export default function HomeScreen() {
-    const [location, setLocation] = useState<Location.LocationObject | null>(null)
+    const [location, setLocation] = useState<Location.LocationObjectCoords | null>(null)
+    const [isModalVisible, setIsModalVisible] = useState(false)
+    const [isTypeModalVisible, setIsTypeModalVisible] = useState(false)
+    const [types, setTypes] = useState<EventType[]>(Object.values(EventType))
+    const { decodedToken } = useGetToken()
+    const queryClient = useQueryClient()
 
     const { data: events, isLoading } = useQuery({
-        queryKey: ["events"],
-        queryFn: getEvents,
+        queryKey: ["eventsByType"],
+        queryFn: () => getByTypes(types),
+        enabled: !!types.length,
+    })
+
+    const { data: pendingFriendRequests, isLoading: isPendingFriendRequestsLoading } = useQuery({
+        queryKey: ["pendingFriendRequests"],
+        queryFn: () => getPendingFriendRequests(),
+        enabled: !!decodedToken?.userId,
+    })
+
+    const { data: sentFriendRequests, isLoading: isSentFriendRequestsLoading } = useQuery({
+        queryKey: ["sentFriendRequests"],
+        queryFn: () => getSentFriendRequests(),
+        enabled: !!decodedToken?.userId,
+    })
+
+    const { mutate: cancelFriendRequestMutation, isPending: isCancellingFriendRequest } = useMutation({
+        mutationFn: (requestId: string) => cancelFriendRequest(requestId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["sentFriendRequests"] })
+            queryClient.invalidateQueries({ queryKey: ["pendingFriendRequests"] })
+            queryClient.invalidateQueries({ queryKey: ["friends"] })
+            Toast.success("Invitation acceptée avec succès !")
+        },
+    })
+
+    const { mutate: acceptFriendRequestMutation, isPending: isAcceptingFriendRequest } = useMutation({
+        mutationFn: (requestId: string) => acceptFriendRequest(requestId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["pendingFriendRequests"] })
+            queryClient.invalidateQueries({ queryKey: ["sentFriendRequests"] })
+            queryClient.invalidateQueries({ queryKey: ["friends"] })
+            Toast.success("Invitation annulée avec succès !")
+        },
     })
 
     useEffect(() => {
         ;(async () => {
+            await Location.requestBackgroundPermissionsAsync()
             let { status } = await Location.requestForegroundPermissionsAsync()
             if (status !== "granted") {
-                Alert.alert("Permission de localisation refusée")
+                Toast.error("Permission de localisation refusée")
                 return
             }
 
-            let location = await Location.getCurrentPositionAsync({})
-            setLocation(location)
+            let location = await Location.getCurrentPositionAsync()
+            setLocation(location.coords)
         })()
     }, [])
+
+    const handleNotificationPress = () => {
+        setIsModalVisible(true)
+    }
+
+    const handleTypePress = () => {
+        setIsTypeModalVisible(true)
+    }
+
+    const applyFilters = () => {
+        queryClient.invalidateQueries({ queryKey: ["eventsByType"] })
+        setIsTypeModalVisible(false)
+    }
 
     if (location === null || isLoading) {
         return (
@@ -38,11 +97,23 @@ export default function HomeScreen() {
 
     return (
         <ThemedView style={styles.container}>
+            <View style={styles.headerContainer}>
+                <BlurView style={styles.header} intensity={75} tint="light">
+                    <TouchableOpacity onPress={handleNotificationPress}>
+                        <IconSymbol name="envelope" size={24} color="black" />
+                    </TouchableOpacity>
+                </BlurView>
+                <BlurView style={styles.header} intensity={75} tint="light">
+                    <TouchableOpacity onPress={handleTypePress}>
+                        <IconSymbol name="list.bullet.rectangle" size={24} color="black" />
+                    </TouchableOpacity>
+                </BlurView>
+            </View>
             <MapView
                 style={styles.map}
                 initialRegion={{
-                    latitude: location?.coords.latitude,
-                    longitude: location?.coords.longitude,
+                    latitude: location.latitude,
+                    longitude: location.longitude,
                     latitudeDelta: 0.0922,
                     longitudeDelta: 0.0421,
                 }}
@@ -51,23 +122,92 @@ export default function HomeScreen() {
             >
                 {events &&
                     events.length > 0 &&
-                    events.map((event) => (
-                        <Marker
-                            key={event.id}
-                            coordinate={{
-                                latitude: event.latitude,
-                                longitude: event.longitude,
-                            }}
-                            onCalloutPress={() => router.push(`/event/${event.id}`)}
-                        >
-                            <Callout style={styles.callout}>
-                                <Image source={{ uri: event.coverImage }} style={styles.coverImage} />
-                                <Text>{event.title}</Text>
-                                <Text>{event.description}</Text>
-                            </Callout>
-                        </Marker>
-                    ))}
+                    events
+                        .filter((event) => event.address && event.address.latitude && event.address.longitude)
+                        .map((event) => (
+                            <Marker
+                                key={event.id}
+                                coordinate={{
+                                    latitude: event.address.latitude,
+                                    longitude: event.address.longitude,
+                                }}
+                                onCalloutPress={() => router.push(`/event/${event.id}`)}
+                            >
+                                <Callout style={styles.callout} tooltip>
+                                    <View style={styles.calloutContent}>
+                                        <Image source={{ uri: event.coverImage }} style={styles.coverImage} />
+                                        <Text>{event.title}</Text>
+                                        <Text numberOfLines={3} ellipsizeMode="tail" style={styles.description}>
+                                            {event.description}
+                                        </Text>
+                                    </View>
+                                </Callout>
+                            </Marker>
+                        ))}
             </MapView>
+            <Modal isVisible={isModalVisible} onBackdropPress={() => setIsModalVisible(false)}>
+                <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Invitations</Text>
+                    {isPendingFriendRequestsLoading || (isSentFriendRequestsLoading && <ActivityIndicator size="small" />)}
+                    <View style={styles.modalSection}>
+                        <Text style={styles.modalSubtitle}>En attente</Text>
+                        {pendingFriendRequests &&
+                            pendingFriendRequests.length > 0 &&
+                            pendingFriendRequests.map((request) => (
+                                <View key={request.id} style={styles.modalItem}>
+                                    <View style={styles.modalItemContent}>
+                                        {request.sender.avatar && <Image source={{ uri: request.sender.avatar }} style={styles.modalItemAvatar} />}
+                                        <Text>
+                                            {request.sender.firstname} {request.sender.lastname}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => acceptFriendRequestMutation(request.id)}>
+                                        {isAcceptingFriendRequest ? <ActivityIndicator size="small" /> : <IconSymbol name="person.fill.checkmark" size={24} color="green" />}
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        {pendingFriendRequests && pendingFriendRequests.length === 0 && <Text>Aucune invitation en attente</Text>}
+                    </View>
+                    <View style={styles.modalSection}>
+                        <Text style={styles.modalSubtitle}>Envoyées</Text>
+                        {sentFriendRequests &&
+                            sentFriendRequests.length > 0 &&
+                            sentFriendRequests.map((request) => (
+                                <View key={request.id} style={styles.modalItem}>
+                                    <View style={styles.modalItemContent}>
+                                        {request.receiver.avatar && <Image source={{ uri: request.receiver.avatar }} style={styles.modalItemAvatar} />}
+                                        <Text>
+                                            {request.receiver.firstname} {request.receiver.lastname}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => cancelFriendRequestMutation(request.id)}>
+                                        {isCancellingFriendRequest ? <ActivityIndicator size="small" /> : <IconSymbol name="person.fill.xmark" size={24} color="red" />}
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        {sentFriendRequests && sentFriendRequests.length === 0 && <Text>Aucune invitation envoyée</Text>}
+                    </View>
+                </View>
+            </Modal>
+            <Modal isVisible={isTypeModalVisible} onBackdropPress={() => setIsTypeModalVisible(false)}>
+                <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Filtrer par type</Text>
+                    {Object.values(EventType).map((type) => (
+                        <View key={type} style={styles.modalItem}>
+                            <Checkbox value={types.includes(type)} onValueChange={() => setTypes(types.includes(type) ? types.filter((t) => t !== type) : [...types, type])} />
+                            <Text>{type}</Text>
+                        </View>
+                    ))}
+                    <View style={styles.modalButtons}>
+                        <TouchableOpacity onPress={() => setTypes(Object.values(EventType))} style={[styles.modalButton, { backgroundColor: "#eee", flex: 1 }]}>
+                            <Text style={{ color: "black" }}>Réinitialiser</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={applyFilters} style={[styles.modalButton, { backgroundColor: "#1487ea", flex: 1 }]}>
+                            <Text style={{ color: "white" }}>Appliquer</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </ThemedView>
     )
 }
@@ -75,6 +215,20 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    headerContainer: {
+        flexDirection: "column",
+        gap: 10,
+        position: "absolute",
+        top: 48,
+        right: 16,
+        zIndex: 1,
+    },
+    header: {
+        padding: 16,
+        zIndex: 1,
+        borderRadius: 50,
+        overflow: "hidden",
     },
     map: {
         width: Dimensions.get("window").width,
@@ -90,11 +244,76 @@ const styles = StyleSheet.create({
         height: 100,
         resizeMode: "cover",
         borderRadius: 16,
+        alignSelf: "center",
     },
     callout: {
+        position: "relative",
+        backgroundColor: "white",
+        borderRadius: 16,
+        maxWidth: 220,
+        maxHeight: 300,
+    },
+    calloutContent: {
+        padding: 10,
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "flex-start",
         gap: 8,
+    },
+    description: {
+        fontSize: 12,
+        color: "gray",
+    },
+    modalContent: {
+        backgroundColor: "white",
+        padding: 20,
+        borderRadius: 10,
+        width: "80%",
+        alignSelf: "center",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        flexDirection: "column",
+        gap: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: "bold",
+    },
+    modalSubtitle: {
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+    modalSection: {
+        flexDirection: "column",
+        gap: 10,
+    },
+    modalItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+        gap: 10,
+    },
+    modalItemAvatar: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+    },
+    modalItemContent: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    modalButtons: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        width: "100%",
+        gap: 10,
+    },
+    modalButton: {
+        padding: 10,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
     },
 })
