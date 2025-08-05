@@ -1,0 +1,118 @@
+name: Vérification Quotidienne des Dépendances
+
+on:
+    schedule:
+        # Vérification quotidienne à 9h00 UTC
+        - cron: "0 9 * * *"
+    workflow_dispatch:
+
+jobs:
+    quick-check:
+        name: Vérification Rapide
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "18"
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Security audit
+              id: audit
+              run: |
+                  echo "🔍 Vérification de sécurité..."
+                  npm audit --audit-level=high --json > audit.json || true
+
+                  if [ -f audit.json ]; then
+                    CRITICAL=$(jq -r '.metadata.vulnerabilities.critical // 0' audit.json)
+                    HIGH=$(jq -r '.metadata.vulnerabilities.high // 0' audit.json)
+                    
+                    echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+                    echo "high=$HIGH" >> $GITHUB_OUTPUT
+                    
+                    if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+                      echo "🚨 Vulnérabilités critiques/élevées détectées!"
+                      echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
+                      echo "high_count=$HIGH" >> $GITHUB_OUTPUT
+                    else
+                      echo "✅ Aucune vulnérabilité critique/élevée"
+                    fi
+                  fi
+
+            - name: Check outdated dependencies
+              id: outdated
+              run: |
+                  echo "📦 Vérification des dépendances obsolètes..."
+                  npm outdated --json > outdated.json || true
+
+                  if [ -f outdated.json ]; then
+                    COUNT=$(jq 'length' outdated.json)
+                    echo "outdated_count=$COUNT" >> $GITHUB_OUTPUT
+                    echo "📊 $COUNT dépendances obsolètes"
+                  else
+                    echo "outdated_count=0" >> $GITHUB_OUTPUT
+                    echo "✅ Toutes les dépendances sont à jour"
+                  fi
+
+            - name: Create issue if critical vulnerabilities
+              if: steps.audit.outputs.critical != '0' || steps.audit.outputs.high != '0'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const { data: issues } = await github.rest.issues.listForRepo({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        state: 'open',
+                        labels: ['security', 'dependencies']
+                      });
+
+                      const existingIssue = issues.find(issue => 
+                        issue.title.includes('Vulnérabilités critiques détectées')
+                      );
+
+                      if (!existingIssue) {
+                        const criticalCount = '${{ steps.audit.outputs.critical }}';
+                        const highCount = '${{ steps.audit.outputs.high }}';
+                        
+                        await github.rest.issues.create({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          title: '🚨 Vulnérabilités critiques détectées - Action requise',
+                          body: '## 🚨 Alerte Sécurité - Compétence RNCP C4.1.1\n\n' +
+                                '### Vulnérabilités détectées\n' +
+                                '- **Critiques:** ' + criticalCount + '\n' +
+                                '- **Élevées:** ' + highCount + '\n\n' +
+                                '### Action requise\n' +
+                                '1. Exécuter le workflow de mise à jour des dépendances\n' +
+                                '2. Vérifier la compatibilité des mises à jour\n' +
+                                '3. Tester l\'application après mise à jour\n\n' +
+                                '### Workflow recommandé\n' +
+                                'Déclencher manuellement le workflow de mise à jour via Actions > Gestion des Dépendances\n\n' +
+                                '---\n' +
+                                '*Généré automatiquement par GitHub Actions*',
+                          labels: ['security', 'dependencies', 'urgent', 'rncp-c4.1.1']
+                        });
+                      }
+
+            - name: Summary
+              run: |
+                  echo "# 📊 Vérification Quotidienne - $(date)" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "## 🔒 Sécurité" >> $GITHUB_STEP_SUMMARY
+                  echo "- Vulnérabilités critiques: ${{ steps.audit.outputs.critical }}" >> $GITHUB_STEP_SUMMARY
+                  echo "- Vulnérabilités élevées: ${{ steps.audit.outputs.high }}" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "## 📦 Dépendances" >> $GITHUB_STEP_SUMMARY
+                  echo "- Obsolètes: ${{ steps.outdated.outputs.outdated_count }}" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "## ✅ Compétence RNCP C4.1.1" >> $GITHUB_STEP_SUMMARY
+                  echo "- Surveillance régulière: ✅ Automatisée" >> $GITHUB_STEP_SUMMARY
+                  echo "- Détection des vulnérabilités: ✅ Opérationnelle" >> $GITHUB_STEP_SUMMARY

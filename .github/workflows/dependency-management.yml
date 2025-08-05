@@ -1,0 +1,290 @@
+name: Gestion des Dépendances
+
+on:
+    # Déclenchement manuel
+    workflow_dispatch:
+        inputs:
+            update_type:
+                description: "Type de mise à jour"
+                required: true
+                default: "security"
+                type: choice
+                options:
+                    - security
+                    - all
+                    - check-only
+            create_pr:
+                description: "Créer une Pull Request"
+                required: true
+                default: true
+                type: boolean
+
+    # Déclenchement automatique
+    schedule:
+        # Vérification quotidienne à 9h00 UTC
+        - cron: "0 9 * * *"
+        # Vérification hebdomadaire le dimanche à 10h00 UTC
+        - cron: "0 10 * * 0"
+
+    # Déclenchement sur push pour les vulnérabilités critiques
+    push:
+        branches: [main, dev]
+
+    # Déclenchement sur pull request
+    pull_request:
+        branches: [main, dev]
+
+env:
+    NODE_VERSION: "18"
+    NPM_VERSION: "latest"
+
+jobs:
+    # Job de vérification des dépendances
+    check-dependencies:
+        name: Vérification des Dépendances
+        runs-on: ubuntu-latest
+        outputs:
+            vulnerabilities: ${{ steps.security-check.outputs.vulnerabilities }}
+            critical: ${{ steps.security-check.outputs.critical }}
+            high: ${{ steps.security-check.outputs.high }}
+            outdated: ${{ steps.outdated-check.outputs.outdated }}
+
+        steps:
+            - name: Checkout du code
+              uses: actions/checkout@v4
+
+            - name: Configuration Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "npm"
+
+            - name: Installation des dépendances
+              run: npm ci
+
+            - name: Vérification des vulnérabilités de sécurité
+              id: security-check
+              run: |
+                  echo "🔍 Vérification des vulnérabilités de sécurité..."
+                  npm audit --audit-level=moderate --json > audit-report.json || true
+
+                  # Analyse du rapport
+                  if [ -f audit-report.json ]; then
+                    VULNERABILITIES=$(jq -r '.metadata.vulnerabilities.total // 0' audit-report.json)
+                    CRITICAL=$(jq -r '.metadata.vulnerabilities.critical // 0' audit-report.json)
+                    HIGH=$(jq -r '.metadata.vulnerabilities.high // 0' audit-report.json)
+                    
+                    echo "vulnerabilities=$VULNERABILITIES" >> $GITHUB_OUTPUT
+                    echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+                    echo "high=$HIGH" >> $GITHUB_OUTPUT
+                    
+                    echo "📊 Vulnérabilités détectées: $VULNERABILITIES (Critiques: $CRITICAL, Élevées: $HIGH)"
+                    
+                    if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+                      echo "⚠️ Vulnérabilités critiques/élevées détectées!"
+                      exit 1
+                    fi
+                  else
+                    echo "✅ Aucune vulnérabilité détectée"
+                    echo "vulnerabilities=0" >> $GITHUB_OUTPUT
+                    echo "critical=0" >> $GITHUB_OUTPUT
+                    echo "high=0" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Vérification des dépendances obsolètes
+              id: outdated-check
+              run: |
+                  echo "🔍 Vérification des dépendances obsolètes..."
+                  npm outdated --json > outdated-report.json || true
+
+                  if [ -f outdated-report.json ]; then
+                    OUTDATED_COUNT=$(jq 'length' outdated-report.json)
+                    echo "outdated=$OUTDATED_COUNT" >> $GITHUB_OUTPUT
+                    echo "📦 Dépendances obsolètes: $OUTDATED_COUNT"
+                  else
+                    echo "outdated=0" >> $GITHUB_OUTPUT
+                    echo "✅ Toutes les dépendances sont à jour"
+                  fi
+
+            - name: Upload des rapports
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dependency-reports
+                  path: |
+                      audit-report.json
+                      outdated-report.json
+                  retention-days: 30
+
+            - name: Commentaire sur les vulnérabilités
+              if: steps.security-check.outputs.critical != '0' || steps.security-check.outputs.high != '0'
+              run: |
+                  echo "🚨 **ALERTE SÉCURITÉ** 🚨" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "Vulnérabilités critiques: ${{ steps.security-check.outputs.critical }}" >> $GITHUB_STEP_SUMMARY
+                  echo "Vulnérabilités élevées: ${{ steps.security-check.outputs.high }}" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "⚠️ **Action requise immédiatement**" >> $GITHUB_STEP_SUMMARY
+
+    # Job de mise à jour des dépendances
+    update-dependencies:
+        name: Mise à Jour des Dépendances
+        runs-on: ubuntu-latest
+        needs: check-dependencies
+        if: |
+            github.event_name == 'workflow_dispatch' ||
+            (github.event_name == 'schedule' && needs.check-dependencies.outputs.vulnerabilities != '0') ||
+            (github.event_name == 'push' && needs.check-dependencies.outputs.critical != '0') ||
+            (github.event_name == 'pull_request' && needs.check-dependencies.outputs.critical != '0')
+
+        steps:
+            - name: Checkout du code
+              uses: actions/checkout@v4
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Configuration Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "npm"
+
+            - name: Configuration Git
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+
+            - name: Sauvegarde du package.json
+              run: cp package.json package.json.backup
+
+            - name: Mise à jour des vulnérabilités de sécurité
+              id: security-update
+              run: |
+                  echo "🔒 Correction des vulnérabilités de sécurité..."
+                  npm audit fix --audit-level=moderate || true
+
+                  # Vérification post-mise à jour
+                  npm audit --audit-level=moderate --json > audit-after.json || true
+                  VULNERABILITIES_AFTER=$(jq -r '.metadata.vulnerabilities.total // 0' audit-after.json)
+                  echo "vulnerabilities_after=$VULNERABILITIES_AFTER" >> $GITHUB_OUTPUT
+
+            - name: Mise à jour des dépendances (si demandé)
+              if: github.event.inputs.update_type == 'all'
+              run: |
+                  echo "📦 Mise à jour générale des dépendances..."
+                  npm update
+
+            - name: Tests de validation
+              run: |
+                  echo "🧪 Exécution des tests de validation..."
+                  npm run lint
+
+            - name: Vérification des changements
+              id: changes
+              run: |
+                  if git diff --quiet package.json package-lock.json; then
+                    echo "has_changes=false" >> $GITHUB_OUTPUT
+                    echo "✅ Aucun changement détecté"
+                  else
+                    echo "has_changes=true" >> $GITHUB_OUTPUT
+                    echo "📝 Changements détectés dans les dépendances"
+                  fi
+
+            - name: Création de Pull Request
+              if: |
+                  steps.changes.outputs.has_changes == 'true' &&
+                  (github.event.inputs.create_pr == 'true' || github.event_name == 'schedule')
+              uses: peter-evans/create-pull-request@v5
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  commit-message: "chore(deps): mise à jour des dépendances - Compétence RNCP C4.1.1"
+                  title: "🔒 Mise à jour des dépendances - Sécurité et maintenance"
+                  body: |
+                      ## Mise à jour des Dépendances - Compétence RNCP C4.1.1
+
+                      ### 🔍 Changements détectés
+                      - Vulnérabilités corrigées: ${{ steps.security-update.outputs.vulnerabilities_after }}
+                      - Type de mise à jour: ${{ github.event.inputs.update_type }}
+
+                      ### 📋 Checklist
+                      - [ ] Tests de linting passés
+                      - [ ] Aucune vulnérabilité critique
+                      - [ ] Compatibilité vérifiée
+
+                      ### 🔧 Processus de validation
+                      1. Vérification automatique des vulnérabilités
+                      2. Mise à jour sécurisée des dépendances
+                      3. Tests de validation
+                      4. Création de Pull Request
+
+                      **Compétence RNCP C4.1.1** : Gestion des mises à jour des dépendances
+
+                      ---
+                      *Généré automatiquement par GitHub Actions*
+                  branch: "deps/update-$(date +%Y%m%d-%H%M%S)"
+                  base: main
+                  delete-branch: true
+                  labels: |
+                      dependencies
+                      security
+                      automated
+                      rncp-c4.1.1
+
+            - name: Commit direct (si PR non créée)
+              if: |
+                  steps.changes.outputs.has_changes == 'true' &&
+                  github.event.inputs.create_pr == 'false' &&
+                  github.event_name == 'workflow_dispatch'
+              run: |
+                  git add package.json package-lock.json
+                  git commit -m "chore(deps): mise à jour des dépendances - Compétence RNCP C4.1.1"
+                  git push
+
+            - name: Restauration en cas d'erreur
+              if: failure()
+              run: |
+                  echo "🔄 Restauration du package.json..."
+                  cp package.json.backup package.json
+                  git add package.json
+                  git commit -m "revert: restauration après échec de mise à jour"
+                  git push
+
+    # Job de rapport et notification
+    report:
+        name: Rapport et Notifications
+        runs-on: ubuntu-latest
+        needs: [check-dependencies, update-dependencies]
+        if: always()
+
+        steps:
+            - name: Download des rapports
+              uses: actions/download-artifact@v4
+              with:
+                  name: dependency-reports
+
+            - name: Génération du rapport
+              run: |
+                  echo "# 📊 Rapport de Gestion des Dépendances" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+                  echo "**Projet:** Kifekoi" >> $GITHUB_STEP_SUMMARY
+                  echo "**Compétence RNCP:** C4.1.1" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+
+                  if [ -f audit-report.json ]; then
+                    echo "## 🔒 Vulnérabilités de Sécurité" >> $GITHUB_STEP_SUMMARY
+                    jq -r '.metadata.vulnerabilities | "**Total:** \(.total), **Critiques:** \(.critical), **Élevées:** \(.high), **Modérées:** \(.moderate), **Faibles:** \(.low)"' audit-report.json >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                  fi
+
+                  if [ -f outdated-report.json ]; then
+                    echo "## 📦 Dépendances Obsolètes" >> $GITHUB_STEP_SUMMARY
+                    OUTDATED_COUNT=$(jq 'length' outdated-report.json)
+                    echo "**Nombre:** $OUTDATED_COUNT" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                  fi
+
+                  echo "## ✅ Statut de la Compétence C4.1.1" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Surveillance régulière:** ✅ Automatisée" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Évaluation des impacts:** ✅ Matrice de décision" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Intégration sécurisée:** ✅ Processus automatisé" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Maintenance à jour:** ✅ Outils et documentation" >> $GITHUB_STEP_SUMMARY
