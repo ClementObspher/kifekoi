@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "date": "2025-08-07",
+  "summary": {
+    "breaking": 0,
+    "security": 0,
+    "features": 0,
+    "fixes": 0,
+    "docs": 0,
+    "other": 5,
+    "total": 5
+  },
+  "commits": {
+    "features": [],
+    "fixes": [],
+    "breaking": [],
+    "security": [],
+    "docs": [],
+    "chore": [],
+    "other": [
+      {
+        "hash": "fd28f45",
+        "message": ":sparkles: dependency audit",
+        "author": "ClementObspher",
+        "date": "2025-08-05"
+      },
+      {
+        "hash": "1fbe1e5",
+        "message": ":sparkles: messages & reactions",
+        "author": "ClementObspher",
+        "date": "2025-08-04"
+      },
+      {
+        "hash": "5c52f37",
+        "message": "🚀 Tabs: Profile, Events, Create event",
+        "author": "ClementObspher",
+        "date": "2025-07-24"
+      },
+      {
+        "hash": "2ee8f90",
+        "message": "🚀 Init expo + login page + connexion api",
+        "author": "ClementObspher",
+        "date": "2025-05-23"
+      },
+      {
+        "hash": "52a27a2",
+        "message": "Initial commit",
+        "author": "ClementObspher",
+        "date": "2025-05-23"
+      }
+    ]
+  }
+}

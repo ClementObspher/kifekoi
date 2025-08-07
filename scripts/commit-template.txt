@@ -1,0 +1,44 @@
+# Template de Commit - Projet Kifekoi
+# Compétence RNCP C4.3.2 - Journal des versions
+
+# Type de modification (obligatoire)
+# feat: nouvelle fonctionnalité
+# fix: correction de bug
+# docs: documentation
+# style: formatage, point-virgules manquants, etc.
+# refactor: refactorisation du code
+# perf: amélioration des performances
+# test: ajout ou modification de tests
+# chore: tâches de maintenance, configuration, etc.
+# breaking: changement incompatible avec les versions précédentes
+# security: correction de vulnérabilité
+
+# Description courte (obligatoire, max 50 caractères)
+# Exemple: feat: ajouter système d'authentification
+
+# Description détaillée (optionnelle)
+# Expliquer le pourquoi et le comment de la modification
+# Exemple: 
+# - Améliore la sécurité de l'application
+# - Simplifie le processus de connexion
+# - Corrige le bug de navigation sur iOS
+
+# Impact sur l'utilisateur (optionnel)
+# Exemple: Les utilisateurs peuvent maintenant se connecter avec Google
+
+# Tests effectués (optionnel)
+# Exemple: Tests unitaires ajoutés, tests d'intégration passent
+
+# Références (optionnel)
+# Exemple: Fixes #123, Relates to #456
+
+# Exemple de commit complet:
+# feat: ajouter système d'authentification Google
+# 
+# - Intègre Google Sign-In pour simplifier la connexion
+# - Améliore le taux de conversion des inscriptions
+# - Réduit la friction lors de l'onboarding
+# 
+# Impact: Les utilisateurs peuvent se connecter en un clic
+# Tests: Tests unitaires et d'intégration passent
+# Fixes: #123

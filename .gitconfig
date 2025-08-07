@@ -1,0 +1,59 @@
+[core]
+    editor = code --wait
+    autocrlf = input
+    filemode = false
+
+[commit]
+    template = scripts/commit-template.txt
+
+[push]
+    default = simple
+    followTags = true
+
+[tag]
+    sort = version:refname
+
+[log]
+    decorate = short
+    abbrevCommit = true
+    graph = true
+    oneline = true
+
+[alias]
+    lg = log --oneline --graph --decorate
+    st = status
+    co = checkout
+    br = branch
+    ci = commit
+    unstage = reset HEAD --
+    last = log -1 HEAD
+    visual = !gitk
+
+[init]
+    defaultBranch = main
+
+[user]
+    name = Équipe Kifekoi
+    email = dev@kifekoi.com
+
+[color]
+    ui = auto
+    branch = auto
+    diff = auto
+    status = auto
+
+[color "branch"]
+    current = yellow reverse
+    local = yellow
+    remote = green
+
+[color "diff"]
+    meta = yellow bold
+    frag = magenta bold
+    old = red bold
+    new = green bold
+
+[color "status"]
+    added = yellow
+    changed = green
+    untracked = cyan
