@@ -7,6 +7,17 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-08-07
+
+- - fix: :bug: update actions permissions
+- - feat: 📁 Changelog version management
+- - :sparkles: dependency audit
+- - :sparkles: messages & reactions
+- - 🚀 Tabs: Profile, Events, Create event
+- - 🚀 Init expo + login page + connexion api
+- - Initial commit
+
+
 ### Added
 - Améliorations futures à venir
 
