@@ -225,7 +225,7 @@ class ChangelogGenerator {
             commits: categorizedCommits,
         }
 
-        const reportPath = path.join(this.projectRoot, `release-report-${version}.json`)
+        const reportPath = path.join(this.projectRoot, `reports/release-report-${version}.json`)
         fs.writeFileSync(reportPath, JSON.stringify(report, null, 2))
         console.log(`📊 Rapport de release généré: ${reportPath}`)
 
