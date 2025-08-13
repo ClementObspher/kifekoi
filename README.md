@@ -1,50 +1,115 @@
-# Welcome to your Expo app 👋
+# Kifekoi 🎉
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Kifekoi** est une application mobile de gestion d'événements et de rencontres sociales, développée avec React Native et Expo.
 
-## Get started
+## 🚀 Fonctionnalités
 
-1. Install dependencies
+### 📍 Découverte d'événements
+- **Carte interactive** : Visualisez les événements autour de vous sur une carte
+- **Filtrage par type** : Filtrez les événements par catégorie (Sport, Culture, Soirée, etc.)
+- **Géolocalisation** : Trouvez des événements près de votre position
 
-   ```bash
-   npm install
-   ```
+### 🎯 Création et gestion d'événements
+- **Création d'événements** : Créez facilement des événements avec titre, description, dates et lieu
+- **Sélection d'adresse** : Recherche et sélection d'adresse avec suggestions automatiques
+- **Images de couverture** : Ajoutez des photos à vos événements
+- **Modification d'événements** : Modifiez vos événements existants
 
-2. Start the app
+### 👥 Gestion des amis
+- **Système d'amis** : Ajoutez et gérez vos amis
+- **Demandes d'amis** : Envoyez et acceptez des demandes d'amis
+- **Profil utilisateur** : Gérez votre profil avec photo, bio et informations personnelles
 
-   ```bash
-   npx expo start
-   ```
+### 🔐 Authentification
+- **Inscription/Connexion** : Système d'authentification complet
+- **Gestion des tokens** : Authentification sécurisée avec JWT
 
-In the output, you'll find options to open the app in a
+### 🛠️ Support et maintenance
+- **Signalement de bugs** : Formulaire intégré pour signaler les problèmes
+- **Interface moderne** : Design responsive avec thème adaptatif
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🛠️ Technologies utilisées
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **React Native** avec **Expo** pour le développement mobile
+- **TypeScript** pour la sécurité des types
+- **React Query** pour la gestion d'état et des requêtes
+- **React Hook Form** avec **Yup** pour la validation des formulaires
+- **React Native Maps** pour l'intégration de cartes
+- **Expo Router** pour la navigation
+- **AsyncStorage** pour le stockage local
 
-## Get a fresh project
+## 📱 Plateformes supportées
 
-When you're ready, run:
+- ✅ iOS
+- ✅ Android
+- ✅ Web (responsive)
+
+## 🚀 Installation et lancement
+
+### Prérequis
+
+- Node.js (version 18 ou supérieure)
+- npm ou yarn
+- Expo CLI (`npm install -g @expo/cli`)
+
+### 1. Installation des dépendances
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Lancement de l'application
 
-## Learn more
+```bash
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+### 3. Options de développement
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Dans la sortie de la commande, vous trouverez des options pour ouvrir l'application dans :
 
-## Join the community
+- **Development build** : Pour tester sur un appareil physique
+- **Android emulator** : Simulateur Android
+- **iOS simulator** : Simulateur iOS (macOS uniquement)
+- **Expo Go** : Application de test Expo (fonctionnalités limitées)
 
-Join our community of developers creating universal apps.
+### Commandes utiles
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+# Lancer sur Android
+npm expo run:android
+
+# Lancer sur iOS
+npm expo run:ios
+```
+
+## 🏗️ Structure du projet
+
+```
+kifekoi/
+├── app/                    # Pages de l'application (Expo Router)
+│   ├── (tabs)/            # Onglets principaux
+│   │   ├── index.tsx      # Page d'accueil avec carte
+│   │   ├── events.tsx     # Liste des événements
+│   │   ├── create-event.tsx # Création/modification d'événements
+│   │   └── profile.tsx    # Profil utilisateur
+│   ├── login.tsx          # Page de connexion
+│   └── register.tsx       # Page d'inscription
+├── api/                   # Services API
+├── components/            # Composants réutilisables
+├── hooks/                 # Hooks personnalisés
+├── constants/             # Constantes de l'application
+└── assets/               # Images et ressources
+```
+
+## 🔧 Configuration
+
+L'application utilise des variables d'environnement pour la configuration :
+
+- `EXPO_PUBLIC_API_URL` : URL de l'API backend (défaut: `http://localhost:3001`)
+
+## 📄 Licence
+
+Ce projet est privé et développé pour à des fins éducatives.
+
+**Développé avec ❤️ par l'équipe Kifekoi**
