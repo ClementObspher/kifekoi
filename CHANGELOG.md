@@ -7,6 +7,11 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-08-13
+
+- - feat: bug report form
+
+
 ## [1.1.1] - 2025-08-07
 
 - - fix: :bug: update actions permissions
