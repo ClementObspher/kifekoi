@@ -3,7 +3,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
 import { SymbolViewProps, SymbolWeight } from "expo-symbols"
 import { ComponentProps } from "react"
-import { OpaqueColorValue, type StyleProp, type TextStyle } from "react-native"
+import { type StyleProp, type TextStyle } from "react-native"
 
 type IconMapping = Record<SymbolViewProps["name"], ComponentProps<typeof MaterialIcons>["name"]>
 type IconSymbolName = keyof typeof MAPPING
@@ -16,11 +16,23 @@ type IconSymbolName = keyof typeof MAPPING
 const MAPPING = {
     "house.fill": "home",
     "paperplane.fill": "send",
+    paperplane: "send",
     "chevron.left.forwardslash.chevron.right": "code",
     "chevron.right": "chevron-right",
+    "chevron.left": "chevron-left",
     calendar: "event",
     "plus.circle.fill": "add-circle",
     "person.fill": "person",
+    "person.fill.checkmark": "person-add",
+    "person.fill.xmark": "person-remove",
+    envelope: "mail",
+    "list.bullet.rectangle": "list",
+    "line.3.horizontal.decrease.circle.fill": "filter-list",
+    power: "power-settings-new",
+    "exclamationmark.triangle.fill": "warning",
+    "xmark.circle.fill": "cancel",
+    "bubble.left": "chat-bubble",
+    "envelope.fill": "mail",
 } as IconMapping
 
 /**
@@ -33,10 +45,11 @@ export function IconSymbol({
     size = 24,
     color,
     style,
+    weight = "regular",
 }: {
     name: IconSymbolName
     size?: number
-    color: string | OpaqueColorValue
+    color: string
     style?: StyleProp<TextStyle>
     weight?: SymbolWeight
 }) {

@@ -34,7 +34,7 @@ export default function RegisterScreen() {
     const [countryCode, setCountryCode] = useState<CountryCode>("FR")
     const [country, setCountry] = useState<Country | null>(null)
     const [countryPickerVisible, setCountryPickerVisible] = useState<boolean>(false)
-
+    const [datePickerVisible, setDatePickerVisible] = useState<boolean>(false)
     const { showActionSheetWithOptions } = useActionSheet()
 
     const registerMutation = useMutation({
@@ -142,12 +142,20 @@ export default function RegisterScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "height" : "height"} style={styles.container}>
-                <BlurView intensity={20} tint="light" style={styles.header}>
-                    <Image source={require("@/assets/images/KifekoiLogoNoBg.png")} style={styles.logo} />
-                    <Text style={styles.title}>Créer un compte</Text>
-                </BlurView>
+            <KeyboardAvoidingView behavior={"height"} style={styles.container}>
+                {Platform.OS === "ios" && (
+                    <BlurView intensity={20} tint="light" style={styles.header}>
+                        <Image source={require("@/assets/images/KifekoiLogoNoBg.png")} style={styles.logo} />
+                        <Text style={styles.title}>Créer un compte</Text>
+                    </BlurView>
+                )}
                 <ScrollView contentContainerStyle={styles.scrollContent}>
+                    {Platform.OS === "android" && (
+                        <View style={styles.headerAndroid}>
+                            <Image source={require("@/assets/images/KifekoiLogoNoBg.png")} style={styles.logo} />
+                            <Text style={styles.title}>Créer un compte</Text>
+                        </View>
+                    )}
                     <View style={styles.content}>
                         <View style={styles.form}>
                             <Controller
@@ -304,12 +312,28 @@ export default function RegisterScreen() {
                             <Controller
                                 control={control}
                                 name="birthdate"
-                                render={({ field: { onChange, value } }) => (
-                                    <View style={styles.inputDate}>
-                                        <Text style={styles.label}>Date de naissance</Text>
-                                        <DateTimePicker value={value} mode="date" onChange={(_, date) => date && onChange(date)} />
-                                    </View>
-                                )}
+                                render={({ field: { onChange, value } }) => {
+                                    return Platform.OS === "ios" ? (
+                                        <View style={styles.inputDate}>
+                                            <Text style={styles.label}>Date de naissance</Text>
+                                            <DateTimePicker value={value} mode="date" onChange={(_, date) => date && onChange(date)} />
+                                        </View>
+                                    ) : (
+                                        <TouchableOpacity style={styles.inputDate} onPress={() => setDatePickerVisible(true)}>
+                                            <Text style={styles.label}>Date de naissance</Text>
+                                            <Text style={styles.dateText}>{value.toLocaleDateString("fr-FR")}</Text>
+                                            {datePickerVisible && (
+                                                <DateTimePicker
+                                                    value={value}
+                                                    onChange={(_, date) => {
+                                                        setDatePickerVisible(false)
+                                                        date && onChange(date)
+                                                    }}
+                                                />
+                                            )}
+                                        </TouchableOpacity>
+                                    )
+                                }}
                             />
 
                             <Controller
@@ -352,6 +376,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#fff",
+        paddingBottom: Platform.OS === "android" ? 20 : 0,
     },
     scrollContent: {
         flexGrow: 1,
@@ -361,7 +386,7 @@ const styles = StyleSheet.create({
         padding: 20,
         justifyContent: "center",
         alignItems: "center",
-        paddingTop: 200,
+        paddingTop: Platform.OS === "android" ? 0 : 200,
     },
     header: {
         position: "absolute",
@@ -479,5 +504,17 @@ const styles = StyleSheet.create({
     label: {
         color: "#666",
         fontSize: 16,
+    },
+    dateText: {
+        color: "#333",
+        fontSize: 16,
+        fontWeight: "500",
+    },
+    headerAndroid: {
+        width: "100%",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: 50,
     },
 })

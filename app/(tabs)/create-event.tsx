@@ -1,15 +1,15 @@
 import { EventRequest, EventStatus, EventType, createEvent, getEvent, updateEvent } from "@/api/event"
 import { getProfile } from "@/api/user"
+import { useLocation } from "@/hooks/useLocation"
 import { useActionSheet } from "@expo/react-native-action-sheet"
 import { yupResolver } from "@hookform/resolvers/yup"
 import DateTimePicker from "@react-native-community/datetimepicker"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as ImagePicker from "expo-image-picker"
-import * as Location from "expo-location"
 import { router, useLocalSearchParams } from "expo-router"
 import React, { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Toast } from "toastify-react-native"
 import * as yup from "yup"
@@ -61,7 +61,10 @@ export default function CreateEventScreen() {
     } | null>(null)
     const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
     const [showSuggestions, setShowSuggestions] = useState(false)
-    const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+    const [startDatePickerVisible, setStartDatePickerVisible] = useState<boolean>(false)
+    const [endDatePickerVisible, setEndDatePickerVisible] = useState<boolean>(false)
+
+    const { lastLocationStored } = useLocation()
 
     const { data: event } = useQuery({
         queryKey: ["event", id],
@@ -97,26 +100,6 @@ export default function CreateEventScreen() {
     })
 
     useEffect(() => {
-        ;(async () => {
-            const { status } = await Location.requestForegroundPermissionsAsync()
-            if (status !== "granted") {
-                Toast.error("Permission de localisation refusée")
-                return
-            }
-
-            try {
-                const location = await Location.getCurrentPositionAsync({})
-                setUserLocation({
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                })
-            } catch {
-                Toast.error("Erreur lors de la récupération de la position")
-            }
-        })()
-    }, [])
-
-    useEffect(() => {
         const fetchAddressSuggestions = async () => {
             if (addressQuery.length < 3) {
                 setAddressSuggestions(null)
@@ -125,7 +108,11 @@ export default function CreateEventScreen() {
 
             setIsLoadingSuggestions(true)
             try {
-                fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(addressQuery)}&limit=5&lat=${userLocation?.latitude}&lon=${userLocation?.longitude}`)
+                fetch(
+                    `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(addressQuery)}&limit=5&lat=${lastLocationStored?.latitude}&lon=${
+                        lastLocationStored?.longitude
+                    }`
+                )
                     .then((res) => res.json())
                     .then(
                         (data: { features: { properties: { label: string; name?: string; city?: string; postcode?: string }; geometry: { coordinates: [number, number] } }[] }) => {
@@ -152,7 +139,7 @@ export default function CreateEventScreen() {
 
         const debounceTimer = setTimeout(fetchAddressSuggestions, 300)
         return () => clearTimeout(debounceTimer)
-    }, [addressQuery, userLocation])
+    }, [addressQuery, lastLocationStored])
 
     useEffect(() => {
         if (event && type === "update") {
@@ -346,8 +333,12 @@ export default function CreateEventScreen() {
         return { label: type, value: type }
     })
 
-    if (!userLocation) {
-        return <ActivityIndicator size="large" color="#007AFF" />
+    if (!lastLocationStored) {
+        return (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator size="large" color="#007AFF" />
+            </View>
+        )
     }
 
     return (
@@ -423,7 +414,24 @@ export default function CreateEventScreen() {
                     <Controller
                         control={control}
                         name="startDate"
-                        render={({ field: { onChange, value } }) => <DateTimePicker value={value} mode="datetime" onChange={(_, date) => date && onChange(date)} />}
+                        render={({ field: { onChange, value } }) => {
+                            return Platform.OS === "ios" ? (
+                                <DateTimePicker value={value} mode="datetime" onChange={(_, date) => date && onChange(date)} />
+                            ) : (
+                                <TouchableOpacity style={styles.inputDate} onPress={() => setStartDatePickerVisible(startDatePickerVisible ? false : true)}>
+                                    <Text style={styles.dateText}>{value.toLocaleDateString("fr-FR")}</Text>
+                                    {startDatePickerVisible && (
+                                        <DateTimePicker
+                                            value={value}
+                                            onChange={(_, date) => {
+                                                setStartDatePickerVisible(false)
+                                                date && onChange(date)
+                                            }}
+                                        />
+                                    )}
+                                </TouchableOpacity>
+                            )
+                        }}
                     />
                     {errors.startDate && <Text style={styles.errorText}>{errors.startDate.message}</Text>}
                 </View>
@@ -432,7 +440,24 @@ export default function CreateEventScreen() {
                     <Controller
                         control={control}
                         name="endDate"
-                        render={({ field: { onChange, value } }) => <DateTimePicker value={value} mode="datetime" onChange={(_, date) => date && onChange(date)} />}
+                        render={({ field: { onChange, value } }) => {
+                            return Platform.OS === "ios" ? (
+                                <DateTimePicker value={value} mode="datetime" onChange={(_, date) => date && onChange(date)} />
+                            ) : (
+                                <TouchableOpacity style={styles.inputDate} onPress={() => setEndDatePickerVisible(endDatePickerVisible ? false : true)}>
+                                    <Text style={styles.dateText}>{value.toLocaleDateString("fr-FR")}</Text>
+                                    {endDatePickerVisible && (
+                                        <DateTimePicker
+                                            value={value}
+                                            onChange={(_, date) => {
+                                                setEndDatePickerVisible(false)
+                                                date && onChange(date)
+                                            }}
+                                        />
+                                    )}
+                                </TouchableOpacity>
+                            )
+                        }}
                     />
                     {errors.endDate && <Text style={styles.errorText}>{errors.endDate.message}</Text>}
                 </View>
@@ -483,11 +508,15 @@ export default function CreateEventScreen() {
                                                 <TouchableOpacity style={styles.suggestionItem} onPress={() => handleAddressSelect(suggestion)} key={suggestion.label}>
                                                     <View style={styles.suggestionContent}>
                                                         <Text style={styles.suggestionText}>{suggestion.label}</Text>
-                                                        {userLocation && (
+                                                        {lastLocationStored && (
                                                             <Text style={styles.distanceText}>
                                                                 {Math.round(
-                                                                    calculateDistance(userLocation.latitude, userLocation.longitude, suggestion.latitude, suggestion.longitude) *
-                                                                        1000
+                                                                    calculateDistance(
+                                                                        lastLocationStored.latitude,
+                                                                        lastLocationStored.longitude,
+                                                                        suggestion.latitude,
+                                                                        suggestion.longitude
+                                                                    ) * 1000
                                                                 )}{" "}
                                                                 m
                                                             </Text>
@@ -673,5 +702,17 @@ const styles = StyleSheet.create({
         position: "absolute",
         right: 15,
         top: 15,
+    },
+    inputDate: {
+        backgroundColor: "#f5f5f5",
+        padding: 15,
+        borderRadius: 10,
+        marginBottom: 15,
+        fontSize: 16,
+    },
+    dateText: {
+        color: "#333",
+        fontSize: 16,
+        fontWeight: "500",
     },
 })

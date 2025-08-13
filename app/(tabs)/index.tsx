@@ -1,26 +1,28 @@
-import { EventType, getByTypes } from "@/api/event"
+import { EventResponse, EventType, getByTypes } from "@/api/event"
 import { acceptFriendRequest, cancelFriendRequest, getPendingFriendRequests, getSentFriendRequests } from "@/api/user"
 import { ThemedView } from "@/components/ThemedView"
 import { IconSymbol } from "@/components/ui/IconSymbol"
 import { useGetToken } from "@/hooks/useGetToken"
+import { useLocation } from "@/hooks/useLocation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { BlurView } from "expo-blur"
 import { Checkbox } from "expo-checkbox"
-import * as Location from "expo-location"
 import { router } from "expo-router"
-import { useEffect, useState } from "react"
-import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { useState } from "react"
+import { ActivityIndicator, Dimensions, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import MapView, { Callout, Marker } from "react-native-maps"
 import Modal from "react-native-modal"
 import { Toast } from "toastify-react-native"
 
 export default function HomeScreen() {
-    const [location, setLocation] = useState<Location.LocationObjectCoords | null>(null)
     const [isModalVisible, setIsModalVisible] = useState(false)
+    const [selectedEvent, setSelectedEvent] = useState<EventResponse | null>(null)
+    const [isEventModalVisible, setIsEventModalVisible] = useState(false)
     const [isTypeModalVisible, setIsTypeModalVisible] = useState(false)
     const [types, setTypes] = useState<EventType[]>(Object.values(EventType))
     const { decodedToken } = useGetToken()
     const queryClient = useQueryClient()
+    const { location, lastLocationStored } = useLocation()
 
     const { data: events, isLoading } = useQuery({
         queryKey: ["eventsByType"],
@@ -60,20 +62,6 @@ export default function HomeScreen() {
         },
     })
 
-    useEffect(() => {
-        ;(async () => {
-            await Location.requestBackgroundPermissionsAsync()
-            let { status } = await Location.requestForegroundPermissionsAsync()
-            if (status !== "granted") {
-                Toast.error("Permission de localisation refusée")
-                return
-            }
-
-            let location = await Location.getCurrentPositionAsync()
-            setLocation(location.coords)
-        })()
-    }, [])
-
     const handleNotificationPress = () => {
         setIsModalVisible(true)
     }
@@ -87,10 +75,20 @@ export default function HomeScreen() {
         setIsTypeModalVisible(false)
     }
 
-    if (location === null || isLoading) {
+    if (location === null && lastLocationStored === null) {
         return (
             <ThemedView style={styles.loadingContainer}>
                 <ActivityIndicator size="large" />
+                <Text style={{ marginTop: 10 }}>Récupération de votre position...</Text>
+            </ThemedView>
+        )
+    }
+
+    if (isLoading) {
+        return (
+            <ThemedView style={styles.loadingContainer}>
+                <ActivityIndicator size="large" />
+                <Text style={{ marginTop: 10 }}>Chargement des événements...</Text>
             </ThemedView>
         )
     }
@@ -112,8 +110,8 @@ export default function HomeScreen() {
             <MapView
                 style={styles.map}
                 initialRegion={{
-                    latitude: location.latitude,
-                    longitude: location.longitude,
+                    latitude: location?.latitude || lastLocationStored?.latitude || 0,
+                    longitude: location?.longitude || lastLocationStored?.longitude || 0,
                     latitudeDelta: 0.0922,
                     longitudeDelta: 0.0421,
                 }}
@@ -131,17 +129,25 @@ export default function HomeScreen() {
                                     latitude: event.address.latitude,
                                     longitude: event.address.longitude,
                                 }}
+                                onPress={() => {
+                                    if (Platform.OS === "android") {
+                                        setSelectedEvent(event)
+                                        setIsEventModalVisible(true)
+                                    }
+                                }}
                                 onCalloutPress={() => router.push(`/event/${event.id}`)}
                             >
-                                <Callout style={styles.callout} tooltip>
-                                    <View style={styles.calloutContent}>
-                                        <Image source={{ uri: event.coverImage }} style={styles.coverImage} />
-                                        <Text>{event.title}</Text>
-                                        <Text numberOfLines={3} ellipsizeMode="tail" style={styles.description}>
-                                            {event.description}
-                                        </Text>
-                                    </View>
-                                </Callout>
+                                {Platform.OS === "ios" && (
+                                    <Callout style={styles.callout} tooltip>
+                                        <View style={styles.calloutContent}>
+                                            <Image source={{ uri: event.coverImage }} style={styles.coverImage} />
+                                            <Text>{event.title}</Text>
+                                            <Text numberOfLines={3} ellipsizeMode="tail" style={styles.description}>
+                                                {event.description}
+                                            </Text>
+                                        </View>
+                                    </Callout>
+                                )}
                             </Marker>
                         ))}
             </MapView>
@@ -206,6 +212,31 @@ export default function HomeScreen() {
                             <Text style={{ color: "white" }}>Appliquer</Text>
                         </TouchableOpacity>
                     </View>
+                </View>
+            </Modal>
+            <Modal isVisible={isEventModalVisible} onBackdropPress={() => setIsEventModalVisible(false)}>
+                <View style={styles.modalContent}>
+                    {selectedEvent && (
+                        <>
+                            <Image source={{ uri: selectedEvent.coverImage }} style={styles.coverImage} />
+                            <Text style={styles.modalTitle}>{selectedEvent.title}</Text>
+                            <Text style={styles.description}>{selectedEvent.description}</Text>
+                            <View style={styles.modalButtons}>
+                                <TouchableOpacity onPress={() => setIsEventModalVisible(false)} style={[styles.modalButton, { backgroundColor: "#eee", flex: 1 }]}>
+                                    <Text style={{ color: "black" }}>Fermer</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setIsEventModalVisible(false)
+                                        router.push(`/event/${selectedEvent.id}`)
+                                    }}
+                                    style={[styles.modalButton, { backgroundColor: "#1487ea", flex: 1 }]}
+                                >
+                                    <Text style={{ color: "white" }}>Voir détails</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
                 </View>
             </Modal>
         </ThemedView>
