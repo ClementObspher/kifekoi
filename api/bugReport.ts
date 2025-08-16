@@ -29,9 +29,6 @@ export interface GitHubIssue {
     assignees?: string[]
 }
 
-/**
- * Formate le rapport de bug en issue GitHub
- */
 function formatBugReportAsGitHubIssue(bugReport: BugReport): GitHubIssue {
     const priorityLabels = {
         low: "priority: low",
@@ -81,9 +78,6 @@ ${bugReport.userEmail ? `## 📧 Contact utilisateur\n${bugReport.userEmail}` : 
     }
 }
 
-/**
- * Crée une issue GitHub directement depuis le front-end
- */
 async function createGitHubIssue(githubIssue: GitHubIssue): Promise<{ success: boolean; issueUrl?: string; error?: string }> {
     if (!GITHUB_CONFIG.token) {
         return {
@@ -127,14 +121,10 @@ async function createGitHubIssue(githubIssue: GitHubIssue): Promise<{ success: b
     }
 }
 
-/**
- * Envoie un rapport de bug en créant directement une issue GitHub
- */
 export async function submitBugReport(bugReport: BugReport): Promise<{ success: boolean; issueUrl?: string; error?: string }> {
     try {
         const githubIssue = formatBugReportAsGitHubIssue(bugReport)
 
-        // Créer l'issue directement sur GitHub
         const result = await createGitHubIssue(githubIssue)
 
         if (result.success) {

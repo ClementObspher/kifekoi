@@ -6,9 +6,6 @@ import { HapticTab } from "@/components/HapticTab"
 import { IconSymbol } from "@/components/ui/IconSymbol"
 import TabBarBackground from "@/components/ui/TabBarBackground"
 
-const COLORS = ["#fb5d18", "#fba30b", "#4abb45", "#3a35db", "#1487ea"]
-
-// Composant pour colorer chaque lettre individuellement
 const ColoredLabel = ({ text, colors }: { text: string; colors: string[] }) => {
     return (
         <View style={{ flexDirection: "row" }}>
@@ -38,7 +35,6 @@ export default function TabLayout() {
                 tabBarBackground: TabBarBackground,
                 tabBarStyle: Platform.select({
                     ios: {
-                        // Use a transparent background on iOS to show the blur effect
                         position: "absolute",
                     },
                     default: {},

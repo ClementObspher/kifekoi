@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 
-// À remplacer par l'URL de votre API backend
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001"
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"

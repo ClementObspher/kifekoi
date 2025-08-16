@@ -9,7 +9,6 @@ import { Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpaci
 import { Toast } from "toastify-react-native"
 import * as yup from "yup"
 
-// Schéma de validation avec Yup
 const schema = yup.object({
     email: yup.string().required("L'email est requis").email("Format d'email invalide"),
     password: yup.string().required("Le mot de passe est requis").min(6, "Le mot de passe doit contenir au moins 6 caractères"),

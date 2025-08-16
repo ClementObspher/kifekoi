@@ -17,7 +17,6 @@ export default function BugReportPage() {
     return (
         <SafeAreaView style={styles.container}>
             <ThemedView style={styles.container}>
-                {/* Header avec bouton retour */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={handleCancel} style={styles.backButton}>
                         <IconSymbol name="chevron.left" size={24} color="#007AFF" />
@@ -25,7 +24,6 @@ export default function BugReportPage() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Formulaire de signalement */}
                 <BugReportForm onSuccess={handleSuccess} onCancel={handleCancel} />
             </ThemedView>
         </SafeAreaView>

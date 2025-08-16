@@ -54,7 +54,6 @@ export default function BugReportForm({ onSuccess, onCancel }: BugReportFormProp
         name: "steps",
     })
 
-    // Charger les informations de l'appareil au montage du composant
     useEffect(() => {
         setValue("deviceInfo", {
             platform: Platform.OS,

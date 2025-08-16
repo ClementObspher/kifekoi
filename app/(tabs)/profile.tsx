@@ -106,7 +106,6 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
     scrollView: {
-        // flex: 1,
         backgroundColor: "#fff",
         paddingTop: 25,
         marginBottom: 100,
